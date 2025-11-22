@@ -46,5 +46,16 @@ The `/distribution` page tracks items given to publishers.
 
 3. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Docker
+
+You can also run the application using Docker:
+
+```bash
+docker compose up --build
+```
+
+The application will be available at [http://localhost:3000](http://localhost:3000).
+
 ## Verification Results
 - **Build**: `npm run build` passed successfully, confirming type safety and valid build configuration.
+- **Docker**: `docker compose build` passed successfully, confirming the container image builds correctly.
