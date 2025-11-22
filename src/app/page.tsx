@@ -1,65 +1,133 @@
-import Image from "next/image";
+import { db } from "@/lib/store";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Package, ArrowUpFromLine, AlertTriangle, Clock } from "lucide-react";
 
-export default function Home() {
+// Simple Card Component since I don't have the full shadcn library installed yet
+function StatsCard({ title, value, icon: Icon, description, color }: any) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="rounded-xl border bg-white text-card-foreground shadow-sm">
+      <div className="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+        <h3 className="tracking-tight text-sm font-medium text-slate-600">{title}</h3>
+        <Icon className={`h-4 w-4 ${color}`} />
+      </div>
+      <div className="p-6 pt-0">
+        <div className="text-2xl font-bold">{value}</div>
+        <p className="text-xs text-muted-foreground text-slate-600">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+export default async function Dashboard() {
+  // Direct DB access for Server Components
+  const inventory = db.getInventory();
+  const transactions = db.getTransactions();
+
+  const totalItems = inventory.reduce((acc, item) => acc + item.quantity, 0);
+  const lowStockItems = inventory.filter(i => i.quantity < 50).length;
+
+  // Calculate distributed this month
+  const now = new Date();
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const distributedThisMonth = transactions
+    .filter(t => t.type === 'OUT' && new Date(t.date) >= firstDayOfMonth)
+    .reduce((acc, t) => acc + t.quantity, 0);
+
+  const recentTransactions = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h2>
+        <p className="text-slate-600">Overview of your literature inventory and activity.</p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatsCard
+          title="Total Inventory"
+          value={totalItems}
+          icon={Package}
+          description="Items currently in stock"
+          color="text-blue-500"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+        <StatsCard
+          title="Distributed (Month)"
+          value={distributedThisMonth}
+          icon={ArrowUpFromLine}
+          description="Items handed out this month"
+          color="text-green-500"
+        />
+        <StatsCard
+          title="Low Stock Alerts"
+          value={lowStockItems}
+          icon={AlertTriangle}
+          description="Items with < 50 quantity"
+          color="text-amber-500"
+        />
+        <StatsCard
+          title="Recent Activity"
+          value={transactions.length} // Just a count for now
+          icon={Clock}
+          description="Total transactions recorded"
+          color="text-purple-500"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <div className="col-span-4 rounded-xl border bg-white shadow-sm">
+          <div className="p-6">
+            <h3 className="font-semibold text-lg mb-4">Recent Transactions</h3>
+            <div className="space-y-4">
+              {recentTransactions.map((t) => {
+                const item = inventory.find(i => i.id === t.itemId);
+                return (
+                  <div key={t.id} className="flex items-center justify-between border-b border-slate-100 pb-4 last:border-0 last:pb-0">
+                    <div className="flex items-center space-x-4">
+                      <div className={`p-2 rounded-full ${t.type === 'IN' ? 'bg-green-100 text-green-600' : t.type === 'OUT' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
+                        {t.type === 'IN' ? <Package className="h-4 w-4" /> : <ArrowUpFromLine className="h-4 w-4" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">
+                          {t.type === 'IN' ? 'Received' : 'Distributed'} {t.quantity} {item?.title || 'Unknown Item'}
+                        </p>
+                        <p className="text-xs text-slate-600">
+                          {new Date(t.date).toLocaleDateString()} • {t.notes || (t.publisherId ? `To: Publisher ${t.publisherId}` : '')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`text-sm font-bold ${t.type === 'IN' ? 'text-green-600' : 'text-blue-600'}`}>
+                      {t.type === 'IN' ? '+' : '-'}{t.quantity}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="col-span-3 rounded-xl border bg-white shadow-sm">
+          <div className="p-6">
+            <h3 className="font-semibold text-lg mb-4">Inventory Status</h3>
+            <div className="space-y-4">
+              {inventory.slice(0, 5).map((item) => (
+                <div key={item.id} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {/* Placeholder image or icon */}
+                    <div className="h-10 w-10 rounded bg-slate-100 flex items-center justify-center text-slate-400">
+                      <Package className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{item.title}</p>
+                      <p className="text-xs text-slate-600">{item.type} • {item.language}</p>
+                    </div>
+                  </div>
+                  <div className="text-sm font-bold text-slate-700">{item.quantity}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
