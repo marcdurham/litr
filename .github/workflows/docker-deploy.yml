@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Build the Docker image
-      run: docker build src --file src/Dockerfile --tag litr:$(date +%s) --tag litr:latest
+      run: docker build src --file Dockerfile --tag litr:$(date +%s) --tag litr:latest
     - name: Save Docker image
       run: docker save litr:latest | gzip > litr.tar.gz
     - name: Setup SSH
@@ -35,7 +35,7 @@ jobs:
     - name: Create deployment folder
       run: ssh devops@${{ vars.HOST_FQDN }} "mkdir -p /home/devops/litr"
     - name: Copy docker-compose file
-      run: scp src/docker-compose.deploy.yml devops@${{ vars.HOST_FQDN }}:/home/devops/litr/
+      run: scp docker-compose.deploy.yml devops@${{ vars.HOST_FQDN }}:/home/devops/litr/
     - name: Create .env file
       run: |
         ssh devops@${{ vars.HOST_FQDN }} "cat > /home/devops/litr/.env << 'EOF'
