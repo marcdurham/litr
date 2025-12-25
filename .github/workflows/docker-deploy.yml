@@ -1,0 +1,48 @@
+name: Docker Image CI
+# 2025-12-25 1145 deleteme
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+    name: Build & Deploy
+
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the Docker image
+      run: docker build src --file src/Dockerfile --tag litr:$(date +%s) --tag litr:latest
+    - name: Save Docker image
+      run: docker save litr:latest | gzip > litr.tar.gz
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.DOCKER_HOST_SSH_KEY }}" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan -H ${{ vars.HOST_FQDN }} >> ~/.ssh/known_hosts
+    - name: Push image to Docker host
+      run: |
+        ssh devops@${{ vars.HOST_FQDN }} "mkdir -p /home/devops/litr"
+        scp litr.tar.gz devops@${{ vars.HOST_FQDN }}:/home/devops/litr/
+        ssh devops@${{ vars.HOST_FQDN }} "cd /home/devops/litr && gunzip -c litr.tar.gz |
+          docker load && rm litr.tar.gz"
+    - name: Create deployment folder
+      run: ssh devops@${{ vars.HOST_FQDN }} "mkdir -p /home/devops/litr"
+    - name: Copy docker-compose file
+      run: scp src/docker-compose.deploy.yml devops@${{ vars.HOST_FQDN }}:/home/devops/litr/
+    - name: Create .env file
+      run: |
+        ssh devops@${{ vars.HOST_FQDN }} "cat > /home/devops/litr/.env << 'EOF'
+        NOTHING=HERE_YET
+        EOF"
+    - name: Deploy with docker-compose
+      run: >
+        ssh devops@${{ vars.HOST_FQDN }} 
+        "cd /home/devops/litr &&
+        docker compose -f docker-compose.deploy.yml up -d"
